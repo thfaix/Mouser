@@ -12,6 +12,9 @@ import "Theme.js" as Theme
 Item {
     id: mousePage
 
+    // true when an MX Vertical is the connected device
+    readonly property bool isMxVertical: backend.deviceName === "MX Vertical"
+
     // ── Profile state ─────────────────────────────────────────
     property string selectedProfile: backend.activeProfile
     property string selectedProfileLabel: ""
@@ -541,6 +544,7 @@ Item {
                             sublabel: actionFor("gesture")
                             labelSide: "left"
                             labelOffX: -200; labelOffY: 60
+                            visible: !mousePage.isMxVertical
                         }
 
                         HotspotDot {
@@ -575,6 +579,7 @@ Item {
                             sublabel: "L: " + actionFor("hscroll_left") + " | R: " + actionFor("hscroll_right")
                             labelSide: "right"
                             labelOffX: 200; labelOffY: -50
+                            visible: !mousePage.isMxVertical
                         }
                     }
 
