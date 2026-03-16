@@ -144,13 +144,28 @@ class Backend(QObject):
 
     @Property(str, notify=deviceChanged)
     def deviceName(self):
-        """Name of the currently connected HID++ device, e.g. 'MX Master 3S'."""
-        return self._device_name
+        """Effective device name: auto-detected via HID++, or the manually selected model."""
+        if self._device_name:
+            return self._device_name
+        return self._cfg.get("settings", {}).get("selected_device", "")
 
     @Property(str, notify=deviceChanged)
     def deviceDisplayName(self):
-        """Device name for display; falls back to 'MX Master 3S' when none detected."""
-        return self._device_name if self._device_name else "MX Master 3S"
+        """Device name for display; falls back to 'MX Master 3S' when none known."""
+        return self.deviceName or "MX Master 3S"
+
+    @Property(str, notify=settingsChanged)
+    def selectedDevice(self):
+        """Manually configured device model, or '' for auto-detect only."""
+        return self._cfg.get("settings", {}).get("selected_device", "")
+
+    @Slot(str)
+    def setSelectedDevice(self, name):
+        """Persist the chosen device model and update the effective device name."""
+        self._cfg.setdefault("settings", {})["selected_device"] = name
+        save_config(self._cfg)
+        self.settingsChanged.emit()
+        self.deviceChanged.emit()
 
     @Property(str, notify=deviceChanged)
     def deviceType(self):

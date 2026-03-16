@@ -264,6 +264,32 @@ def main():
     ))
     tray_menu.addAction(open_action)
 
+    # ── "Select Mouse" submenu ──────────────────────────────────
+    select_mouse_menu = QMenu("Select Mouse", tray_menu)
+
+    mx_master_action = QAction("MX Master 3S", select_mouse_menu)
+    mx_master_action.setCheckable(True)
+
+    mx_vertical_action = QAction("MX Vertical", select_mouse_menu)
+    mx_vertical_action.setCheckable(True)
+
+    def _update_device_checks():
+        current = backend.selectedDevice
+        mx_master_action.setChecked(current == "MX Master 3S")
+        mx_vertical_action.setChecked(current == "MX Vertical")
+
+    mx_master_action.triggered.connect(lambda: backend.setSelectedDevice("MX Master 3S"))
+    mx_vertical_action.triggered.connect(lambda: backend.setSelectedDevice("MX Vertical"))
+
+    select_mouse_menu.addAction(mx_master_action)
+    select_mouse_menu.addAction(mx_vertical_action)
+
+    backend.settingsChanged.connect(_update_device_checks)
+    _update_device_checks()
+
+    tray_menu.addMenu(select_mouse_menu)
+    tray_menu.addSeparator()
+
     toggle_action = QAction("Disable Remapping", tray_menu)
 
     def toggle_remapping():

@@ -85,6 +85,7 @@ DEFAULT_CONFIG = {
         "gesture_timeout_ms": 3000,
         "gesture_cooldown_ms": 500,
         "debug_mode": False,
+        "selected_device": "",   # manual override: "MX Master 3S", "MX Vertical", or ""
     },
 }
 
