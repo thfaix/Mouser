@@ -144,6 +144,11 @@ class Backend(QObject):
         return self._device_name
 
     @Property(str, notify=deviceChanged)
+    def deviceDisplayName(self):
+        """Device name for display; falls back to 'MX Master 3S' when none detected."""
+        return self._device_name if self._device_name else "MX Master 3S"
+
+    @Property(str, notify=deviceChanged)
     def deviceType(self):
         """Type of connected device: 'mouse', 'keyboard', or '' if unknown."""
         return self._device_type

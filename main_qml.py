@@ -249,8 +249,7 @@ def main():
     tray.setToolTip("Mouser")
 
     def _update_tray_tooltip():
-        name = backend.deviceName or "MX Master 3S"
-        tray.setToolTip(f"Mouser — {name}")
+        tray.setToolTip(f"Mouser — {backend.deviceDisplayName}")
 
     backend.deviceChanged.connect(_update_tray_tooltip)
     _update_tray_tooltip()
