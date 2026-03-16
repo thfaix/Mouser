@@ -115,13 +115,26 @@ That's it — the app will open and start remapping your mouse buttons immediate
 
 ### Steps
 
+**Option A — Automatic setup (Windows)**
+
+```bat
+setup.bat
+```
+
+This script auto-detects your Python executable (`py`, `python`, or `python3`), creates the virtual environment, and installs all dependencies.
+
+**Option B — Manual setup**
+
 ```bash
 # 1. Clone the repository
 git clone https://github.com/TomBadash/MouseControl.git
 cd MouseControl
 
 # 2. Create a virtual environment
-python -m venv .venv
+#    Windows: use the 'py' launcher (recommended) or 'python'
+py -m venv .venv          # Windows (py launcher — recommended)
+python -m venv .venv      # Windows (if 'python' is in PATH)
+python3 -m venv .venv     # macOS / Linux
 
 # 3. Activate it
 .venv\Scripts\activate        # Windows (PowerShell / CMD)
@@ -130,6 +143,9 @@ source .venv/bin/activate      # macOS / Linux
 # 4. Install dependencies
 pip install -r requirements.txt
 ```
+
+> **Windows tip:** If you see `python : The term 'python' is not recognized`, use `py -m venv .venv` instead. The `py` launcher ships with all standard Python Windows installers.  
+> Alternatively, just run `setup.bat` — it handles this automatically.
 
 ### Dependencies
 
@@ -142,11 +158,13 @@ pip install -r requirements.txt
 
 ### Running
 
+> **Note:** Run the commands below with the virtual environment **activated** (or prefix with `.venv\Scripts\python.exe` on Windows).
+
 ```bash
-# Option A: Run directly
+# Option A: Run directly (inside activated venv)
 python main_qml.py
 
-# Option B: Use the batch file (shows a console window)
+# Option B: Use the batch file (shows a console window, no venv activation needed)
 Mouser.bat
 
 # Option C: Use the desktop shortcut (no console window)
