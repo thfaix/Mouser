@@ -249,6 +249,7 @@ if sys.platform == "win32":
             self._last_rehook_time = 0
             self._device_connected = False
             self._connection_change_cb = None
+            self._device_detected_cb = None
             self._gesture_direction_enabled = False
             self._gesture_threshold = 50.0
             self._gesture_deadzone = 40.0
@@ -290,6 +291,10 @@ if sys.platform == "win32":
         def set_connection_change_callback(self, cb):
             """Register ``cb(connected: bool)`` invoked on device connect/disconnect."""
             self._connection_change_cb = cb
+
+        def set_device_detected_callback(self, cb):
+            """Register ``cb(pid: int)`` invoked when the HID++ device PID is identified."""
+            self._device_detected_cb = cb
 
         @property
         def device_connected(self):
@@ -774,6 +779,7 @@ if sys.platform == "win32":
                     on_move=self._on_hid_gesture_move,
                     on_connect=self._on_hid_connect,
                     on_disconnect=self._on_hid_disconnect,
+                    on_device_detected=self._device_detected_cb,
                 )
                 self._hid_gesture.start()
             self._hook_thread = threading.Thread(target=self._run_hook, daemon=True)
@@ -837,6 +843,7 @@ elif sys.platform == "darwin":
             self._first_event_logged = False
             self._device_connected = False
             self._connection_change_cb = None
+            self._device_detected_cb = None
             self._gesture_direction_enabled = False
             self._gesture_threshold = 50.0
             self._gesture_deadzone = 40.0
@@ -876,6 +883,10 @@ elif sys.platform == "darwin":
 
         def set_connection_change_callback(self, cb):
             self._connection_change_cb = cb
+
+        def set_device_detected_callback(self, cb):
+            """Register ``cb(pid: int)`` invoked when the HID++ device PID is identified."""
+            self._device_detected_cb = cb
 
         @property
         def device_connected(self):
@@ -1261,6 +1272,7 @@ elif sys.platform == "darwin":
                     on_move=self._on_hid_gesture_move,
                     on_connect=self._on_hid_connect,
                     on_disconnect=self._on_hid_disconnect,
+                    on_device_detected=self._device_detected_cb,
                 )
                 self._hid_gesture.start()
 
@@ -1341,6 +1353,7 @@ else:
             self._hid_gesture = None
             self._device_connected = False
             self._connection_change_cb = None
+            self._device_detected_cb = None
             print(f"[MouseHook] Platform \'{sys.platform}\' not supported")
 
         def register(self, event_type, callback): pass
@@ -1351,6 +1364,7 @@ else:
                                deadzone=40, timeout_ms=3000, cooldown_ms=500): pass
         def set_debug_callback(self, callback): pass
         def set_connection_change_callback(self, cb): pass
+        def set_device_detected_callback(self, cb): pass
         @property
         def device_connected(self): return False
         def start(self): pass
