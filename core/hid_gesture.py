@@ -75,7 +75,7 @@ class HidGestureListener:
 
     def __init__(self, on_down=None, on_up=None,
                  on_connect=None, on_disconnect=None,
-                 on_device_detected=None):
+                 on_device_detected=None, on_move=None):
         self._on_down            = on_down
         self._on_up              = on_up
         self._on_connect         = on_connect

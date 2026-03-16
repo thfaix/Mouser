@@ -32,6 +32,8 @@ class Backend(QObject):
     dpiFromDevice = Signal(int)
     mouseConnectedChanged = Signal()
     deviceChanged = Signal()              # emitted when connected device changes
+    batteryLevelChanged = Signal()
+    debugModeChanged = Signal()
 
     # Internal cross-thread signals
     _profileSwitchRequest = Signal(str)
@@ -46,6 +48,8 @@ class Backend(QObject):
         self._mouse_connected = False
         self._device_name = ""
         self._device_type = ""
+        self._battery_level = -1
+        self._debug_mode = False
 
         # Cross-thread signal connections
         self._profileSwitchRequest.connect(
@@ -152,6 +156,22 @@ class Backend(QObject):
     def deviceType(self):
         """Type of connected device: 'mouse', 'keyboard', or '' if unknown."""
         return self._device_type
+
+    @Property(int, notify=batteryLevelChanged)
+    def batteryLevel(self):
+        """Battery level 0-100, or -1 if unknown."""
+        return self._battery_level
+
+    @Property(bool, notify=debugModeChanged)
+    def debugMode(self):
+        return self._debug_mode
+
+    @Slot(bool)
+    def setDebugMode(self, value):
+        if self._debug_mode != value:
+            self._debug_mode = value
+            self.debugModeChanged.emit()
+            self.settingsChanged.emit()
 
     @Property(list, notify=profilesChanged)
     def profiles(self):
@@ -316,6 +336,8 @@ class Backend(QObject):
         if not connected:
             self._device_name = ""
             self._device_type = ""
+            self._battery_level = -1
+            self.batteryLevelChanged.emit()
             self.deviceChanged.emit()
         self.mouseConnectedChanged.emit()
 

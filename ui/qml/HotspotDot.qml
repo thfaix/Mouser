@@ -10,7 +10,9 @@ import "Theme.js" as Theme
 
 Item {
     id: hotspot
-    readonly property var theme: Theme.palette(uiState.darkMode)
+    readonly property bool darkMode: uiState ? uiState.darkMode : false
+    readonly property string fontFamily: uiState ? uiState.fontFamily : ""
+    readonly property var theme: Theme.palette(hotspot.darkMode)
 
     // ── Required properties ───────────────────────────────────
     required property Item imgItem        // the Image element
@@ -156,10 +158,10 @@ Item {
         height: labelHeight
         radius: 8
         color: isSelected
-               ? (uiState.darkMode
+               ? (hotspot.darkMode
                   ? Qt.rgba(0, 0.83, 0.67, 0.12)
                   : Qt.rgba(0.82, 0.97, 0.93, 0.9))
-                          : uiState.darkMode ? Qt.rgba(0, 0, 0, 0.35) : Qt.rgba(1, 1, 1, 0.92)
+                          : hotspot.darkMode ? Qt.rgba(0, 0, 0, 0.35) : Qt.rgba(1, 1, 1, 0.92)
         border.width: isSelected || hotspot.activeFocus ? 1 : 0
         border.color: Qt.rgba(0, 0.83, 0.67, 0.3)
 
@@ -175,13 +177,13 @@ Item {
 
             Text {
                 text: hotspot.label
-                font { family: uiState.fontFamily; pixelSize: 12; bold: true }
+                font { family: hotspot.fontFamily; pixelSize: 12; bold: true }
                 color: isSelected ? theme.accent : theme.textPrimary
             }
 
             Text {
                 text: hotspot.sublabel
-                font { family: uiState.fontFamily; pixelSize: 10 }
+                font { family: hotspot.fontFamily; pixelSize: 10 }
                 color: theme.textSecondary
                 visible: text !== ""
                 width: Math.min(implicitWidth, 220)

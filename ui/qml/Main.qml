@@ -13,11 +13,12 @@ ApplicationWindow {
     minimumHeight: 620
     title: "Mouser — " + backend.deviceDisplayName
 
-    property string appearanceMode: uiState.appearanceMode
+    property string appearanceMode: uiState ? uiState.appearanceMode : "system"
     readonly property bool darkMode: appearanceMode === "dark"
                                     || (appearanceMode === "system"
-                                        && uiState.systemDarkMode)
+                                        && (uiState ? uiState.systemDarkMode : false))
     readonly property var theme: Theme.palette(darkMode)
+    readonly property string fontFamily: uiState ? root.fontFamily : ""
     property int currentPage: 0
     property Item hoveredNavItem: null
     property string hoveredNavText: ""
@@ -59,7 +60,7 @@ ApplicationWindow {
                         anchors.centerIn: parent
                         text: "M"
                         font {
-                            family: uiState.fontFamily
+                            family: root.fontFamily
                             pixelSize: 20
                             bold: true
                         }
@@ -193,7 +194,7 @@ ApplicationWindow {
                 anchors.centerIn: parent
                 text: root.hoveredNavText
                 font {
-                    family: uiState.fontFamily
+                    family: root.fontFamily
                     pixelSize: 12
                 }
                 color: root.theme.tooltipText
@@ -219,7 +220,7 @@ ApplicationWindow {
             id: toastText
             anchors.centerIn: parent
             font {
-                family: uiState.fontFamily
+                family: root.fontFamily
                 pixelSize: 12
                 bold: true
             }

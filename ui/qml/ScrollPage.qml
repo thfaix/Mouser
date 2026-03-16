@@ -6,7 +6,9 @@ import "Theme.js" as Theme
 
 Item {
     id: scrollPage
-    readonly property var theme: Theme.palette(uiState.darkMode)
+    readonly property bool darkMode: uiState ? uiState.darkMode : false
+    readonly property string fontFamily: uiState ? uiState.fontFamily : ""
+    readonly property var theme: Theme.palette(scrollPage.darkMode)
 
     ScrollView {
         id: pageScroll
@@ -34,7 +36,7 @@ Item {
                     Text {
                         text: "Point & Scroll"
                         font {
-                            family: uiState.fontFamily
+                            family: scrollPage.fontFamily
                             pixelSize: 24
                             bold: true
                         }
@@ -44,7 +46,7 @@ Item {
                     Text {
                         text: "Adjust pointer speed and scroll behaviour"
                         font {
-                            family: uiState.fontFamily
+                            family: scrollPage.fontFamily
                             pixelSize: 13
                         }
                         color: scrollPage.theme.textSecondary
@@ -84,7 +86,7 @@ Item {
                     Text {
                         text: "Pointer Speed (DPI)"
                         font {
-                            family: uiState.fontFamily
+                            family: scrollPage.fontFamily
                             pixelSize: 16
                             bold: true
                         }
@@ -94,7 +96,7 @@ Item {
                     Text {
                         text: "Adjust the tracking speed of the sensor. Higher = faster pointer."
                         font {
-                            family: uiState.fontFamily
+                            family: scrollPage.fontFamily
                             pixelSize: 12
                         }
                         color: scrollPage.theme.textSecondary
@@ -107,7 +109,7 @@ Item {
                         Text {
                             text: "200"
                             font {
-                                family: uiState.fontFamily
+                                family: scrollPage.fontFamily
                                 pixelSize: 11
                             }
                             color: scrollPage.theme.textDim
@@ -132,7 +134,7 @@ Item {
                         Text {
                             text: "8000"
                             font {
-                                family: uiState.fontFamily
+                                family: scrollPage.fontFamily
                                 pixelSize: 11
                             }
                             color: scrollPage.theme.textDim
@@ -149,7 +151,7 @@ Item {
                                 anchors.centerIn: parent
                                 text: backend.dpi + " DPI"
                                 font {
-                                    family: uiState.fontFamily
+                                    family: scrollPage.fontFamily
                                     pixelSize: 14
                                     bold: true
                                 }
@@ -171,7 +173,7 @@ Item {
                         Text {
                             text: "Presets:"
                             font {
-                                family: uiState.fontFamily
+                                family: scrollPage.fontFamily
                                 pixelSize: 11
                             }
                             color: scrollPage.theme.textDim
@@ -202,7 +204,7 @@ Item {
                                     anchors.centerIn: parent
                                     text: modelData
                                     font {
-                                        family: uiState.fontFamily
+                                        family: scrollPage.fontFamily
                                         pixelSize: 12
                                     }
                                     color: dpiSlider.value === modelData
@@ -251,7 +253,7 @@ Item {
                     Text {
                         text: "Scroll Direction"
                         font {
-                            family: uiState.fontFamily
+                            family: scrollPage.fontFamily
                             pixelSize: 16
                             bold: true
                         }
@@ -261,7 +263,7 @@ Item {
                     Text {
                         text: "Invert the scroll direction (natural scrolling)"
                         font {
-                            family: uiState.fontFamily
+                            family: scrollPage.fontFamily
                             pixelSize: 12
                         }
                         color: scrollPage.theme.textSecondary
@@ -283,7 +285,7 @@ Item {
                             Text {
                                 text: "Invert vertical scroll"
                                 font {
-                                    family: uiState.fontFamily
+                                    family: scrollPage.fontFamily
                                     pixelSize: 13
                                 }
                                 color: scrollPage.theme.textPrimary
@@ -316,7 +318,7 @@ Item {
                             Text {
                                 text: "Invert horizontal scroll"
                                 font {
-                                    family: uiState.fontFamily
+                                    family: scrollPage.fontFamily
                                     pixelSize: 13
                                 }
                                 color: scrollPage.theme.textPrimary
@@ -366,7 +368,7 @@ Item {
                         width: parent.width - 28
                         text: "DPI changes require HID++ communication with the device and will take effect after a short delay."
                         font {
-                            family: uiState.fontFamily
+                            family: scrollPage.fontFamily
                             pixelSize: 12
                         }
                         color: scrollPage.theme.textDim
