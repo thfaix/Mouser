@@ -8,8 +8,10 @@ import os
 from PySide6.QtCore import QObject, Property, Signal, Slot, Qt
 
 from core.config import (
-    BUTTON_NAMES, load_config, save_config, get_active_mappings,
-    set_mapping, create_profile, delete_profile, KNOWN_APPS, get_icon_for_exe,
+    BUTTON_NAMES,
+    load_config, save_config, get_active_mappings,
+    set_mapping, create_profile, delete_profile,
+    KNOWN_APPS, get_icon_for_exe,
 )
 from core.key_simulator import ACTIONS
 
@@ -29,17 +31,25 @@ class Backend(QObject):
     statusMessage = Signal(str)
     dpiFromDevice = Signal(int)
     mouseConnectedChanged = Signal()
+    deviceChanged = Signal()              # emitted when connected device changes
+    batteryLevelChanged = Signal()
+    debugModeChanged = Signal()
 
     # Internal cross-thread signals
     _profileSwitchRequest = Signal(str)
     _dpiReadRequest = Signal(int)
     _connectionChangeRequest = Signal(bool)
+    _deviceChangeRequest = Signal(object)  # passes device config dict
 
     def __init__(self, engine=None, parent=None):
         super().__init__(parent)
         self._engine = engine
         self._cfg = load_config()
         self._mouse_connected = False
+        self._device_name = ""
+        self._device_type = ""
+        self._battery_level = -1
+        self._debug_mode = False
 
         # Cross-thread signal connections
         self._profileSwitchRequest.connect(
@@ -48,12 +58,15 @@ class Backend(QObject):
             self._handleDpiRead, Qt.QueuedConnection)
         self._connectionChangeRequest.connect(
             self._handleConnectionChange, Qt.QueuedConnection)
+        self._deviceChangeRequest.connect(
+            self._handleDeviceChange, Qt.QueuedConnection)
 
         # Wire engine callbacks
         if engine:
             engine.set_profile_change_callback(self._onEngineProfileSwitch)
             engine.set_dpi_read_callback(self._onEngineDpiRead)
             engine.set_connection_change_callback(self._onEngineConnectionChange)
+            engine.set_device_change_callback(self._onEngineDeviceChange)
 
     # ── Properties ─────────────────────────────────────────────
 
@@ -128,6 +141,37 @@ class Backend(QObject):
     @Property(bool, notify=mouseConnectedChanged)
     def mouseConnected(self):
         return self._mouse_connected
+
+    @Property(str, notify=deviceChanged)
+    def deviceName(self):
+        """Name of the currently connected HID++ device, e.g. 'MX Master 3S'."""
+        return self._device_name
+
+    @Property(str, notify=deviceChanged)
+    def deviceDisplayName(self):
+        """Device name for display; falls back to 'MX Master 3S' when none detected."""
+        return self._device_name if self._device_name else "MX Master 3S"
+
+    @Property(str, notify=deviceChanged)
+    def deviceType(self):
+        """Type of connected device: 'mouse', 'keyboard', or '' if unknown."""
+        return self._device_type
+
+    @Property(int, notify=batteryLevelChanged)
+    def batteryLevel(self):
+        """Battery level 0-100, or -1 if unknown."""
+        return self._battery_level
+
+    @Property(bool, notify=debugModeChanged)
+    def debugMode(self):
+        return self._debug_mode
+
+    @Slot(bool)
+    def setDebugMode(self, value):
+        if self._debug_mode != value:
+            self._debug_mode = value
+            self.debugModeChanged.emit()
+            self.settingsChanged.emit()
 
     @Property(list, notify=profilesChanged)
     def profiles(self):
@@ -265,6 +309,10 @@ class Backend(QObject):
         """Called from engine/hook thread — posts to Qt main thread."""
         self._connectionChangeRequest.emit(connected)
 
+    def _onEngineDeviceChange(self, device_config):
+        """Called from engine thread — posts to Qt main thread."""
+        self._deviceChangeRequest.emit(device_config)
+
     @Slot(str)
     def _handleProfileSwitch(self, profile_name):
         """Runs on Qt main thread."""
@@ -285,4 +333,21 @@ class Backend(QObject):
     def _handleConnectionChange(self, connected):
         """Runs on Qt main thread."""
         self._mouse_connected = connected
+        if not connected:
+            self._device_name = ""
+            self._device_type = ""
+            self._battery_level = -1
+            self.batteryLevelChanged.emit()
+            self.deviceChanged.emit()
         self.mouseConnectedChanged.emit()
+
+    @Slot(object)
+    def _handleDeviceChange(self, device_config):
+        """Runs on Qt main thread."""
+        if device_config:
+            self._device_name = device_config.get("name", "")
+            self._device_type = device_config.get("type", "")
+        else:
+            self._device_name = ""
+            self._device_type = ""
+        self.deviceChanged.emit()

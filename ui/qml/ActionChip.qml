@@ -5,7 +5,9 @@ import "Theme.js" as Theme
 
 Rectangle {
     id: chip
-    readonly property var theme: Theme.palette(uiState.darkMode)
+    readonly property bool darkMode: uiState ? uiState.darkMode : false
+    readonly property string fontFamily: uiState ? uiState.fontFamily : ""
+    readonly property var theme: Theme.palette(chip.darkMode)
 
     property string actionId: ""
     property string actionLabel: ""
@@ -39,7 +41,7 @@ Rectangle {
         id: chipText
         anchors.centerIn: parent
         text: actionLabel
-        font { family: uiState.fontFamily; pixelSize: 12 }
+        font { family: chip.fontFamily; pixelSize: 12 }
         color: isCurrent ? theme.bgSidebar : theme.textPrimary
     }
 

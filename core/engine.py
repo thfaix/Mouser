@@ -12,6 +12,7 @@ from core.config import (
     BUTTON_TO_EVENTS, save_config,
 )
 from core.app_detector import AppDetector
+from core.devices import get_device_config
 
 
 class Engine:
@@ -31,10 +32,13 @@ class Engine:
         self._profile_change_cb = None       # UI callback
         self._connection_change_cb = None   # UI callback for device status
         self._battery_read_cb = None        # UI callback for battery level
+        self._device_change_cb = None       # UI callback for device type change
         self._battery_poll_stop = threading.Event()
         self._lock = threading.Lock()
+        self._current_device = None         # device config dict or None
         self._setup_hooks()
         self.hook.set_connection_change_callback(self._on_connection_change)
+        self.hook.set_device_detected_callback(self._on_device_detected)
         # Apply persisted DPI setting
         dpi = self.cfg.get("settings", {}).get("dpi", 1000)
         try:
@@ -114,7 +118,29 @@ class Engine:
         """Register a callback ``cb(profile_name)`` invoked on auto-switch."""
         self._profile_change_cb = cb
 
+    def set_device_change_callback(self, cb):
+        """Register ``cb(device_config: dict)`` invoked when connected device is identified."""
+        self._device_change_cb = cb
+
+    def _on_device_detected(self, pid: int):
+        """Called from HidGestureListener when a device is identified."""
+        device = get_device_config(pid)
+        self._current_device = device
+        print(f"[Engine] Detected device: {device['name']} (PID=0x{pid:04X})")
+        if self._device_change_cb:
+            try:
+                self._device_change_cb(device)
+            except Exception:
+                pass
+
     def _on_connection_change(self, connected):
+        if not connected:
+            self._current_device = None
+            if self._device_change_cb:
+                try:
+                    self._device_change_cb(None)
+                except Exception:
+                    pass
         if self._connection_change_cb:
             try:
                 self._connection_change_cb(connected)
@@ -155,6 +181,11 @@ class Engine:
     @property
     def device_connected(self):
         return self.hook.device_connected
+
+    @property
+    def current_device(self):
+        """Device config dict for the currently connected device, or None."""
+        return self._current_device
 
     # ------------------------------------------------------------------
     # Public API

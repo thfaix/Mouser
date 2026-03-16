@@ -11,6 +11,12 @@ import "Theme.js" as Theme
 
 Item {
     id: mousePage
+    readonly property bool darkMode: uiState ? uiState.darkMode : false
+    readonly property string fontFamily: uiState ? uiState.fontFamily : ""
+    readonly property var theme: Theme.palette(mousePage.darkMode)
+
+    // true when an MX Vertical is the connected device
+    readonly property bool isMxVertical: backend.deviceName === "MX Vertical"
 
     // ── Profile state ─────────────────────────────────────────
     property string selectedProfile: backend.activeProfile
@@ -138,8 +144,8 @@ Item {
             id: leftPanel
             width: 220
             height: parent.height
-            color: Theme.bgCard
-            border.width: 1; border.color: Theme.border
+            color: mousePage.theme.bgCard
+            border.width: 1; border.color: mousePage.theme.border
 
             Column {
                 anchors.fill: parent
@@ -155,12 +161,12 @@ Item {
                             verticalCenter: parent.verticalCenter
                         }
                         text: "Profiles"
-                        font { family: Theme.fontFamily; pixelSize: 14; bold: true }
-                        color: Theme.textPrimary
+                        font { family: mousePage.fontFamily; pixelSize: 14; bold: true }
+                        color: mousePage.theme.textPrimary
                     }
                 }
 
-                Rectangle { width: parent.width; height: 1; color: Theme.border }
+                Rectangle { width: parent.width; height: 1; color: mousePage.theme.border }
 
                 // Profile items
                 ListView {
@@ -192,7 +198,7 @@ Item {
                             Rectangle {
                                 width: 3; height: 28; radius: 2
                                 color: modelData.isActive
-                                       ? Theme.accent : "transparent"
+                                       ? mousePage.theme.accent : "transparent"
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
@@ -228,11 +234,11 @@ Item {
                                 Text {
                                     text: modelData.label
                                     font {
-                                        family: Theme.fontFamily
+                                        family: mousePage.fontFamily
                                         pixelSize: 12; bold: true
                                     }
                                     color: selectedProfile === modelData.name
-                                           ? Theme.accent : Theme.textPrimary
+                                           ? mousePage.theme.accent : mousePage.theme.textPrimary
                                     elide: Text.ElideRight
                                     width: leftPanel.width - 70
                                 }
@@ -240,8 +246,8 @@ Item {
                                     text: modelData.apps.length
                                           ? modelData.apps.join(", ")
                                           : "All applications"
-                                    font { family: Theme.fontFamily; pixelSize: 9 }
-                                    color: Theme.textSecondary
+                                    font { family: mousePage.fontFamily; pixelSize: 9 }
+                                    color: mousePage.theme.textSecondary
                                     elide: Text.ElideRight
                                     width: leftPanel.width - 70
                                 }
@@ -258,7 +264,7 @@ Item {
                     }
                 }
 
-                Rectangle { width: parent.width; height: 1; color: Theme.border }
+                Rectangle { width: parent.width; height: 1; color: mousePage.theme.border }
 
                 // Add profile controls
                 Item {
@@ -281,20 +287,20 @@ Item {
                                     labels.push(apps[i].label)
                                 return labels
                             }
-                            Material.accent: Theme.accent
-                            font { family: Theme.fontFamily; pixelSize: 10 }
+                            Material.accent: mousePage.theme.accent
+                            font { family: mousePage.fontFamily; pixelSize: 10 }
                         }
 
                         Rectangle {
                             width: 42; height: 28; radius: 8
                             color: addBtnMa.containsMouse
-                                   ? Theme.accentHover : Theme.accent
+                                   ? mousePage.theme.accentHover : mousePage.theme.accent
 
                             Text {
                                 anchors.centerIn: parent
                                 text: "+"
-                                font { family: Theme.fontFamily; pixelSize: 16; bold: true }
-                                color: Theme.bgSidebar
+                                font { family: mousePage.fontFamily; pixelSize: 16; bold: true }
+                                color: mousePage.theme.bgSidebar
                             }
 
                             MouseArea {
@@ -350,9 +356,9 @@ Item {
                                     spacing: 8
 
                                     Text {
-                                        text: "MX Master 3S"
-                                        font { family: Theme.fontFamily; pixelSize: 20; bold: true }
-                                        color: Theme.textPrimary
+                                        text: backend.deviceDisplayName
+                                        font { family: mousePage.fontFamily; pixelSize: 20; bold: true }
+                                        color: mousePage.theme.textPrimary
                                     }
 
                                     // Profile badge
@@ -367,16 +373,16 @@ Item {
                                             id: profBadgeText
                                             anchors.centerIn: parent
                                             text: selectedProfileLabel
-                                            font { family: Theme.fontFamily; pixelSize: 11 }
-                                            color: Theme.accent
+                                            font { family: mousePage.fontFamily; pixelSize: 11 }
+                                            color: mousePage.theme.accent
                                         }
                                     }
                                 }
 
                                 Text {
                                     text: "Click a dot to configure its action"
-                                    font { family: Theme.fontFamily; pixelSize: 12 }
-                                    color: Theme.textSecondary
+                                    font { family: mousePage.fontFamily; pixelSize: 12 }
+                                    color: mousePage.theme.textSecondary
                                 }
                             }
                         }
@@ -403,8 +409,8 @@ Item {
                                     id: delText
                                     anchors.centerIn: parent
                                     text: "Delete Profile"
-                                    font { family: Theme.fontFamily; pixelSize: 10; bold: true }
-                                    color: Theme.textPrimary
+                                    font { family: mousePage.fontFamily; pixelSize: 10; bold: true }
+                                    color: mousePage.theme.textPrimary
                                 }
 
                                 MouseArea {
@@ -444,12 +450,12 @@ Item {
                                     }
                                     Text {
                                         text: backend.batteryLevel + "%"
-                                        font { family: Theme.fontFamily; pixelSize: 11; bold: true }
+                                        font { family: mousePage.fontFamily; pixelSize: 11; bold: true }
                                         color: {
                                             var lvl = backend.batteryLevel
                                             if (lvl < 20) return "#e05555"
                                             if (lvl <= 69) return "#e0b840"
-                                            return Theme.accent
+                                            return mousePage.theme.accent
                                         }
                                     }
                                 }
@@ -472,15 +478,15 @@ Item {
                                     Rectangle {
                                         width: 7; height: 7; radius: 4
                                         color: backend.mouseConnected
-                                               ? Theme.accent : "#e05555"
+                                               ? mousePage.theme.accent : "#e05555"
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     Text {
                                         text: backend.mouseConnected
                                               ? "Connected" : "Not Connected"
-                                        font { family: Theme.fontFamily; pixelSize: 11 }
+                                        font { family: mousePage.fontFamily; pixelSize: 11 }
                                         color: backend.mouseConnected
-                                               ? Theme.accent : "#e05555"
+                                               ? mousePage.theme.accent : "#e05555"
                                     }
                                 }
                             }
@@ -489,7 +495,7 @@ Item {
 
                     Rectangle {
                         width: parent.width - 56; height: 1
-                        color: Theme.border
+                        color: mousePage.theme.border
                         anchors.horizontalCenter: parent.horizontalCenter
                     }
 
@@ -501,7 +507,7 @@ Item {
 
                         Rectangle {
                             anchors.fill: parent
-                            color: Theme.bg
+                            color: mousePage.theme.bg
                         }
 
                         Image {
@@ -541,6 +547,7 @@ Item {
                             sublabel: actionFor("gesture")
                             labelSide: "left"
                             labelOffX: -200; labelOffY: 60
+                            visible: !mousePage.isMxVertical
                         }
 
                         HotspotDot {
@@ -575,13 +582,14 @@ Item {
                             sublabel: "L: " + actionFor("hscroll_left") + " | R: " + actionFor("hscroll_right")
                             labelSide: "right"
                             labelOffX: 200; labelOffY: -50
+                            visible: !mousePage.isMxVertical
                         }
                     }
 
                     // ── Separator ─────────────────────────────
                     Rectangle {
                         width: parent.width - 56; height: 1
-                        color: Theme.border
+                        color: mousePage.theme.border
                         anchors.horizontalCenter: parent.horizontalCenter
                         visible: selectedButton !== ""
                     }
@@ -614,7 +622,7 @@ Item {
 
                                 Rectangle {
                                     width: 6; height: pickerTitleCol.height
-                                    radius: 3; color: Theme.accent
+                                    radius: 3; color: mousePage.theme.accent
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
 
@@ -626,15 +634,15 @@ Item {
                                         text: selectedButtonName
                                               ? selectedButtonName + " — Choose Action"
                                               : ""
-                                        font { family: Theme.fontFamily; pixelSize: 15; bold: true }
-                                        color: Theme.textPrimary
+                                        font { family: mousePage.fontFamily; pixelSize: 15; bold: true }
+                                        color: mousePage.theme.textPrimary
                                     }
                                     Text {
                                         text: selectedButton === "hscroll_left"
                                               ? "Configure separate actions for scroll left and right"
                                               : "Select what happens when you use this button"
-                                        font { family: Theme.fontFamily; pixelSize: 12 }
-                                        color: Theme.textSecondary
+                                        font { family: mousePage.fontFamily; pixelSize: 12 }
+                                        color: mousePage.theme.textSecondary
                                         visible: selectedButton !== ""
                                     }
                                 }
@@ -648,9 +656,9 @@ Item {
 
                                 Text {
                                     text: "SCROLL LEFT"
-                                    font { family: Theme.fontFamily; pixelSize: 11;
+                                    font { family: mousePage.fontFamily; pixelSize: 11;
                                            capitalization: Font.AllUppercase; letterSpacing: 1 }
-                                    color: Theme.textDim
+                                    color: mousePage.theme.textDim
                                 }
 
                                 Flow {
@@ -673,9 +681,9 @@ Item {
 
                                 Text {
                                     text: "SCROLL RIGHT"
-                                    font { family: Theme.fontFamily; pixelSize: 11;
+                                    font { family: mousePage.fontFamily; pixelSize: 11;
                                            capitalization: Font.AllUppercase; letterSpacing: 1 }
-                                    color: Theme.textDim
+                                    color: mousePage.theme.textDim
                                 }
 
                                 Flow {
@@ -711,10 +719,10 @@ Item {
 
                                         Text {
                                             text: modelData.category
-                                            font { family: Theme.fontFamily; pixelSize: 11;
+                                            font { family: mousePage.fontFamily; pixelSize: 11;
                                                    capitalization: Font.AllUppercase;
                                                    letterSpacing: 1 }
-                                            color: Theme.textDim
+                                            color: mousePage.theme.textDim
                                         }
 
                                         Flow {
@@ -748,3 +756,4 @@ Item {
         }
     }
 }
+

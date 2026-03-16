@@ -246,7 +246,13 @@ def main():
 
     # ── System Tray ────────────────────────────────────────────
     tray = QSystemTrayIcon(_tray_icon(), app)
-    tray.setToolTip("Mouser — MX Master 3S")
+    tray.setToolTip("Mouser")
+
+    def _update_tray_tooltip():
+        tray.setToolTip(f"Mouser — {backend.deviceDisplayName}")
+
+    backend.deviceChanged.connect(_update_tray_tooltip)
+    _update_tray_tooltip()
 
     tray_menu = QMenu()
 
