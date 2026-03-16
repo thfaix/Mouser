@@ -6,12 +6,16 @@ Supports per-application auto-switching of profiles.
 
 import threading
 from core.mouse_hook import MouseHook, MouseEvent
+from core.keyboard_hook import KeyboardHook
 from core.key_simulator import execute_action
 from core.config import (
-    load_config, get_active_mappings, get_profile_for_app,
-    BUTTON_TO_EVENTS, save_config,
+    load_config, get_active_mappings, get_active_keyboard_mappings,
+    get_profile_for_app,
+    BUTTON_TO_EVENTS, KEYBOARD_BUTTON_TO_EVENTS,
+    save_config,
 )
 from core.app_detector import AppDetector
+from core.devices import get_device_config, DEVICE_TYPE_KEYBOARD
 
 
 class Engine:
@@ -23,6 +27,7 @@ class Engine:
 
     def __init__(self):
         self.hook = MouseHook()
+        self.keyboard_hook = KeyboardHook()
         self.cfg = load_config()
         self._enabled = True
         self._hscroll_accum = 0
@@ -31,10 +36,13 @@ class Engine:
         self._profile_change_cb = None       # UI callback
         self._connection_change_cb = None   # UI callback for device status
         self._battery_read_cb = None        # UI callback for battery level
+        self._device_change_cb = None       # UI callback for device type change
         self._battery_poll_stop = threading.Event()
         self._lock = threading.Lock()
+        self._current_device = None         # device config dict or None
         self._setup_hooks()
         self.hook.set_connection_change_callback(self._on_connection_change)
+        self.hook.set_device_detected_callback(self._on_device_detected)
         # Apply persisted DPI setting
         dpi = self.cfg.get("settings", {}).get("dpi", 1000)
         try:
@@ -72,6 +80,16 @@ class Engine:
                     else:
                         self.hook.register(evt_type, self._make_handler(action_id))
 
+        # Wire keyboard key mappings
+        keyboard_mappings = get_active_keyboard_mappings(self.cfg)
+        for key, action_id in keyboard_mappings.items():
+            events = list(KEYBOARD_BUTTON_TO_EVENTS.get(key, ()))
+            for evt_type in events:
+                if action_id != "none":
+                    self.keyboard_hook.block(evt_type)
+                    self.keyboard_hook.register(
+                        evt_type, self._make_handler(action_id))
+
     def _make_handler(self, action_id):
         def handler(event):
             if self._enabled:
@@ -102,6 +120,7 @@ class Engine:
             self._current_profile = profile_name
             # Lightweight: just re-wire callbacks, keep hook + HID++ alive
             self.hook.reset_bindings()
+            self.keyboard_hook.reset_bindings()
             self._setup_hooks()
         # Notify UI (if connected)
         if self._profile_change_cb:
@@ -114,7 +133,24 @@ class Engine:
         """Register a callback ``cb(profile_name)`` invoked on auto-switch."""
         self._profile_change_cb = cb
 
+    def set_device_change_callback(self, cb):
+        """Register ``cb(device_config: dict)`` invoked when connected device is identified."""
+        self._device_change_cb = cb
+
+    def _on_device_detected(self, pid: int):
+        """Called from HidGestureListener when a device is identified."""
+        device = get_device_config(pid)
+        self._current_device = device
+        print(f"[Engine] Detected device: {device['name']} (PID=0x{pid:04X})")
+        if self._device_change_cb:
+            try:
+                self._device_change_cb(device)
+            except Exception:
+                pass
+
     def _on_connection_change(self, connected):
+        if not connected:
+            self._current_device = None
         if self._connection_change_cb:
             try:
                 self._connection_change_cb(connected)
@@ -156,6 +192,11 @@ class Engine:
     def device_connected(self):
         return self.hook.device_connected
 
+    @property
+    def current_device(self):
+        """Device config dict for the currently connected device, or None."""
+        return self._current_device
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -179,6 +220,7 @@ class Engine:
             self.cfg = load_config()
             self._current_profile = self.cfg.get("active_profile", "default")
             self.hook.reset_bindings()
+            self.keyboard_hook.reset_bindings()
             self._setup_hooks()
 
     def set_enabled(self, enabled):
@@ -186,6 +228,7 @@ class Engine:
 
     def start(self):
         self.hook.start()
+        self.keyboard_hook.start()
         self._app_detector.start()
         # Read current DPI from device on startup (don't overwrite it)
         self._dpi_read_cb = None   # UI callback for initial DPI
@@ -212,4 +255,5 @@ class Engine:
     def stop(self):
         self._app_detector.stop()
         self.hook.stop()
+        self.keyboard_hook.stop()
 

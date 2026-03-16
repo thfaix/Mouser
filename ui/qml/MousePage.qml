@@ -350,7 +350,7 @@ Item {
                                     spacing: 8
 
                                     Text {
-                                        text: "MX Master 3S"
+                                        text: backend.deviceName !== "" ? backend.deviceName : "MX Master 3S"
                                         font { family: Theme.fontFamily; pixelSize: 20; bold: true }
                                         color: Theme.textPrimary
                                     }

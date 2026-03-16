@@ -74,11 +74,13 @@ class HidGestureListener:
     """Background thread: diverts the gesture button and listens via HID++."""
 
     def __init__(self, on_down=None, on_up=None,
-                 on_connect=None, on_disconnect=None):
-        self._on_down       = on_down
-        self._on_up         = on_up
-        self._on_connect    = on_connect
-        self._on_disconnect = on_disconnect
+                 on_connect=None, on_disconnect=None,
+                 on_device_detected=None):
+        self._on_down            = on_down
+        self._on_up              = on_up
+        self._on_connect         = on_connect
+        self._on_disconnect      = on_disconnect
+        self._on_device_detected = on_device_detected  # cb(pid: int)
         self._dev       = None          # hid.device()
         self._thread    = None
         self._running   = False
@@ -89,8 +91,14 @@ class HidGestureListener:
         self._connected = False         # True while HID++ device is open
         self._pending_dpi = None        # set by set_dpi(), applied in loop
         self._dpi_result  = None        # True/False after apply
+        self._detected_pid = None       # product ID of the connected device
 
     # ── public API ────────────────────────────────────────────────
+
+    @property
+    def detected_pid(self):
+        """Product ID (int) of the currently connected device, or None."""
+        return self._detected_pid
 
     def start(self):
         if not HIDAPI_OK:
@@ -370,6 +378,13 @@ class HidGestureListener:
                     if dpi_fi:
                         self._dpi_idx = dpi_fi
                         print(f"[HidGesture] Found ADJUSTABLE_DPI @0x{dpi_fi:02X}")
+                    # Notify about the detected device PID
+                    self._detected_pid = pid
+                    if self._on_device_detected:
+                        try:
+                            self._on_device_detected(pid)
+                        except Exception:
+                            pass
                     if self._divert():
                         return True
                     break        # right device but divert failed
@@ -425,6 +440,7 @@ class HidGestureListener:
             self._dev = None
             self._feat_idx = None
             self._held = False
+            self._detected_pid = None
             if self._connected:
                 self._connected = False
                 if self._on_disconnect:

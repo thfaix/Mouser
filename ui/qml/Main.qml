@@ -11,7 +11,7 @@ ApplicationWindow {
     height: 700
     minimumWidth: 920
     minimumHeight: 620
-    title: "Mouser — MX Master 3S"
+    title: "Mouser — " + (backend.deviceName !== "" ? backend.deviceName : "MX Master 3S")
 
     property string appearanceMode: uiState.appearanceMode
     readonly property bool darkMode: appearanceMode === "dark"
@@ -71,8 +71,9 @@ ApplicationWindow {
 
                 Repeater {
                     model: [
-                        { icon: "mouse-simple", tip: "Mouse & Profiles", page: 0 },
-                        { icon: "sliders-horizontal", tip: "Point & Scroll", page: 1 }
+                        { icon: "mouse-simple",          tip: "Mouse & Profiles",   page: 0 },
+                        { icon: "sliders-horizontal",    tip: "Point & Scroll",     page: 1 },
+                        { icon: "keyboard",              tip: "Keyboard (MX Keys)", page: 2 }
                     ]
 
                     delegate: FocusScope {
@@ -164,6 +165,10 @@ ApplicationWindow {
             Loader {
                 active: root.currentPage === 1 || item
                 source: "ScrollPage.qml"
+            }
+            Loader {
+                active: root.currentPage === 2 || item
+                source: "KeyboardPage.qml"
             }
         }
     }
