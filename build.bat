@@ -21,7 +21,8 @@ if exist ".venv\Scripts\activate.bat" (
     call ".venv\Scripts\activate.bat"
     echo [*] Virtual-env activated
 ) else (
-    echo [!] No .venv found — using system Python
+    echo [!] No .venv found — run setup.bat first to create one.
+    echo [!] Falling back to system Python...
 )
 
 :: ── 2. Ensure PyInstaller is installed ───────────────────────
