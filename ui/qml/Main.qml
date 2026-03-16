@@ -71,9 +71,8 @@ ApplicationWindow {
 
                 Repeater {
                     model: [
-                        { icon: "mouse-simple",          tip: "Mouse & Profiles",   page: 0 },
-                        { icon: "sliders-horizontal",    tip: "Point & Scroll",     page: 1 },
-                        { icon: "keyboard",              tip: "Keyboard (MX Keys)", page: 2 }
+                        { icon: "mouse-simple",       tip: "Mouse & Profiles", page: 0 },
+                        { icon: "sliders-horizontal", tip: "Point & Scroll",   page: 1 }
                     ]
 
                     delegate: FocusScope {
@@ -165,10 +164,6 @@ ApplicationWindow {
             Loader {
                 active: root.currentPage === 1 || item
                 source: "ScrollPage.qml"
-            }
-            Loader {
-                active: root.currentPage === 2 || item
-                source: "KeyboardPage.qml"
             }
         }
     }

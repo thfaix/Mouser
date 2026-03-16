@@ -52,44 +52,8 @@ BUTTON_TO_EVENTS = {
     "hscroll_right": ("hscroll_right",),
 }
 
-# ── Keyboard (MX Keys) button definitions ───────────────────────
-
-# Friendly names for keyboard keys that can be remapped
-KEYBOARD_BUTTON_NAMES = {
-    "f1":  "F1",
-    "f2":  "F2",
-    "f3":  "F3",
-    "f4":  "F4",
-    "f5":  "F5",
-    "f6":  "F6",
-    "f7":  "F7",
-    "f8":  "F8",
-    "f9":  "F9",
-    "f10": "F10",
-    "f11": "F11",
-    "f12": "F12",
-}
-
-# Maps keyboard button keys to the KeyboardEvent types they correspond to
-KEYBOARD_BUTTON_TO_EVENTS = {
-    "f1":  ("f1",),
-    "f2":  ("f2",),
-    "f3":  ("f3",),
-    "f4":  ("f4",),
-    "f5":  ("f5",),
-    "f6":  ("f6",),
-    "f7":  ("f7",),
-    "f8":  ("f8",),
-    "f9":  ("f9",),
-    "f10": ("f10",),
-    "f11": ("f11",),
-    "f12": ("f12",),
-}
-
-DEFAULT_KEYBOARD_MAPPINGS = {k: "none" for k in KEYBOARD_BUTTON_NAMES}
-
 DEFAULT_CONFIG = {
-    "version": 4,
+    "version": 3,
     "active_profile": "default",
     "profiles": {
         "default": {
@@ -107,7 +71,6 @@ DEFAULT_CONFIG = {
                 "hscroll_left": "browser_back",
                 "hscroll_right": "browser_forward",
             },
-            "keyboard_mappings": dict(DEFAULT_KEYBOARD_MAPPINGS),
         }
     },
     "settings": {
@@ -194,17 +157,6 @@ def get_active_mappings(cfg):
     return profile.get("mappings", DEFAULT_CONFIG["profiles"]["default"]["mappings"])
 
 
-def get_active_keyboard_mappings(cfg):
-    """Return the keyboard_mappings dict for the currently active profile."""
-    profile_name = cfg.get("active_profile", "default")
-    profiles = cfg.get("profiles", {})
-    profile = profiles.get(profile_name, profiles.get("default", {}))
-    return profile.get(
-        "keyboard_mappings",
-        DEFAULT_CONFIG["profiles"]["default"]["keyboard_mappings"],
-    )
-
-
 def set_mapping(cfg, button, action_id, profile=None):
     """Set a mapping for a button in the given profile (or active profile)."""
     if profile is None:
@@ -212,25 +164,8 @@ def set_mapping(cfg, button, action_id, profile=None):
     cfg["profiles"].setdefault(profile, {
         "label": profile,
         "mappings": dict(DEFAULT_CONFIG["profiles"]["default"]["mappings"]),
-        "keyboard_mappings": dict(DEFAULT_KEYBOARD_MAPPINGS),
     })
     cfg["profiles"][profile]["mappings"][button] = action_id
-    save_config(cfg)
-    return cfg
-
-
-def set_keyboard_mapping(cfg, key, action_id, profile=None):
-    """Set a keyboard key mapping in the given profile (or active profile)."""
-    if profile is None:
-        profile = cfg.get("active_profile", "default")
-    cfg["profiles"].setdefault(profile, {
-        "label": profile,
-        "mappings": dict(DEFAULT_CONFIG["profiles"]["default"]["mappings"]),
-        "keyboard_mappings": dict(DEFAULT_KEYBOARD_MAPPINGS),
-    })
-    cfg["profiles"][profile].setdefault(
-        "keyboard_mappings", dict(DEFAULT_KEYBOARD_MAPPINGS))
-    cfg["profiles"][profile]["keyboard_mappings"][key] = action_id
     save_config(cfg)
     return cfg
 
@@ -244,8 +179,6 @@ def create_profile(cfg, name, label=None, copy_from="default", apps=None):
         "label": label,
         "apps": apps if apps is not None else [],
         "mappings": dict(source.get("mappings", {})),
-        "keyboard_mappings": dict(source.get("keyboard_mappings",
-                                             DEFAULT_KEYBOARD_MAPPINGS)),
     }
     save_config(cfg)
     return cfg
@@ -295,12 +228,6 @@ def _migrate(cfg):
             for key in GESTURE_DIRECTION_BUTTONS:
                 mappings.setdefault(key, "none")
         cfg["version"] = 3
-
-    if version < 4:
-        # v3 → v4: add keyboard_mappings to every profile
-        for pdata in cfg.get("profiles", {}).values():
-            pdata.setdefault("keyboard_mappings", dict(DEFAULT_KEYBOARD_MAPPINGS))
-        cfg["version"] = 4
 
     cfg.setdefault("settings", {})
     cfg["settings"].setdefault("debug_mode", False)

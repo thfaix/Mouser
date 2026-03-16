@@ -8,11 +8,10 @@ import os
 from PySide6.QtCore import QObject, Property, Signal, Slot, Qt
 
 from core.config import (
-    BUTTON_NAMES, KEYBOARD_BUTTON_NAMES,
-    load_config, save_config, get_active_mappings, get_active_keyboard_mappings,
-    set_mapping, set_keyboard_mapping, create_profile, delete_profile,
+    BUTTON_NAMES,
+    load_config, save_config, get_active_mappings,
+    set_mapping, create_profile, delete_profile,
     KNOWN_APPS, get_icon_for_exe,
-    DEFAULT_KEYBOARD_MAPPINGS,
 )
 from core.key_simulator import ACTIONS
 
@@ -193,17 +192,6 @@ class Backend(QObject):
         self.mappingsChanged.emit()
         self.statusMessage.emit("Saved")
 
-    @Slot(str, str, str)
-    def setProfileKeyboardMapping(self, profileName, key, actionId):
-        """Set a keyboard key mapping in a specific profile."""
-        self._cfg = set_keyboard_mapping(self._cfg, key, actionId,
-                                         profile=profileName)
-        if self._engine:
-            self._engine.reload_mappings()
-        self.profilesChanged.emit()
-        self.mappingsChanged.emit()
-        self.statusMessage.emit("Saved")
-
     @Slot(int)
     def setDpi(self, value):
         self._cfg.setdefault("settings", {})["dpi"] = value
@@ -269,23 +257,6 @@ class Backend(QObject):
         mappings = pdata.get("mappings", {})
         result = []
         for key, name in BUTTON_NAMES.items():
-            aid = mappings.get(key, "none")
-            result.append({
-                "key": key,
-                "name": name,
-                "actionId": aid,
-                "actionLabel": _action_label(aid),
-            })
-        return result
-
-    @Slot(str, result=list)
-    def getProfileKeyboardMappings(self, profileName):
-        """Return keyboard key mappings for a specific profile."""
-        profiles = self._cfg.get("profiles", {})
-        pdata = profiles.get(profileName, {})
-        mappings = pdata.get("keyboard_mappings", {})
-        result = []
-        for key, name in KEYBOARD_BUTTON_NAMES.items():
             aid = mappings.get(key, "none")
             result.append({
                 "key": key,

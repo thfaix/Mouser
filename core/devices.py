@@ -1,14 +1,13 @@
 """
 Device registry — maps Logitech product IDs to device configurations.
 
-Supports MX Master 3S, MX Vertical, and MX Keys / MX Keys S.
+Supports MX Master 3S and MX Vertical.
 """
 
-# ── Device types ────────────────────────────────────────────────
-DEVICE_TYPE_MOUSE    = "mouse"
-DEVICE_TYPE_KEYBOARD = "keyboard"
+# ── Device type ─────────────────────────────────────────────────
+DEVICE_TYPE_MOUSE = "mouse"
 
-# ── Button/key definitions per device ───────────────────────────
+# ── Button definitions per device ───────────────────────────────
 
 # MX Master 3S — all six programmable controls
 MX_MASTER_3S_BUTTONS = {
@@ -26,22 +25,6 @@ MX_VERTICAL_BUTTONS = {
     "middle":   "Middle button",
     "xbutton1": "Back button",
     "xbutton2": "Forward button",
-}
-
-# MX Keys / MX Keys S — remappable F-keys
-MX_KEYS_KEYS = {
-    "f1":  "F1",
-    "f2":  "F2",
-    "f3":  "F3",
-    "f4":  "F4",
-    "f5":  "F5",
-    "f6":  "F6",
-    "f7":  "F7",
-    "f8":  "F8",
-    "f9":  "F9",
-    "f10": "F10",
-    "f11": "F11",
-    "f12": "F12",
 }
 
 # ── Device registry ─────────────────────────────────────────────
@@ -82,38 +65,6 @@ DEVICES = {
         "hid_cids":  [],
         "has_dpi":   True,
         "dpi_range": (400, 4000),
-    },
-    # MX Keys — Bluetooth
-    0xB361: {
-        "name":    "MX Keys",
-        "type":    DEVICE_TYPE_KEYBOARD,
-        "buttons": MX_KEYS_KEYS,
-        "hid_cids": [],
-        "has_dpi": False,
-    },
-    # MX Keys — Bolt receiver
-    0xB35B: {
-        "name":    "MX Keys",
-        "type":    DEVICE_TYPE_KEYBOARD,
-        "buttons": MX_KEYS_KEYS,
-        "hid_cids": [],
-        "has_dpi": False,
-    },
-    # MX Keys S — Bluetooth
-    0xB35E: {
-        "name":    "MX Keys S",
-        "type":    DEVICE_TYPE_KEYBOARD,
-        "buttons": MX_KEYS_KEYS,
-        "hid_cids": [],
-        "has_dpi": False,
-    },
-    # MX Keys S — Bolt receiver
-    0xB35C: {
-        "name":    "MX Keys S",
-        "type":    DEVICE_TYPE_KEYBOARD,
-        "buttons": MX_KEYS_KEYS,
-        "hid_cids": [],
-        "has_dpi": False,
     },
 }
 
