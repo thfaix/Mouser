@@ -11,7 +11,7 @@ ApplicationWindow {
     height: 700
     minimumWidth: 920
     minimumHeight: 620
-    title: "Mouser — " + (backend.deviceName !== "" ? backend.deviceName : "MX Master 3S")
+    title: "Mouser — " + backend.deviceDisplayName
 
     property string appearanceMode: uiState.appearanceMode
     readonly property bool darkMode: appearanceMode === "dark"
