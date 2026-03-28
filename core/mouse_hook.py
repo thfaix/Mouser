@@ -1325,6 +1325,522 @@ elif sys.platform == "darwin":
                 self._dispatch_thread = None
 
 
+
+# ==================================================================
+# Linux implementation  (evdev — requires python-evdev and uinput)
+# ==================================================================
+
+elif sys.platform.startswith("linux"):
+    try:
+        import evdev
+        from evdev import InputDevice, UInput, ecodes as _ec, list_devices
+        _EVDEV_OK = True
+    except ImportError:
+        _EVDEV_OK = False
+        print("[MouseHook] python-evdev not installed — "
+              "pip install evdev")
+
+    # evdev button codes used on most mice
+    _BTN_MIDDLE  = 274   # ecodes.BTN_MIDDLE
+    _BTN_SIDE    = 275   # ecodes.BTN_SIDE    — back / thumb-1
+    _BTN_EXTRA   = 276   # ecodes.BTN_EXTRA   — forward / thumb-2
+    _BTN_BACK    = 278   # ecodes.BTN_BACK    — alternate back mapping
+    _BTN_FORWARD = 277   # ecodes.BTN_FORWARD — alternate forward mapping
+
+    _REL_X           = 0
+    _REL_Y           = 1
+    _REL_HWHEEL      = 6
+    _REL_WHEEL       = 8
+    _REL_WHEEL_HI    = 11   # REL_WHEEL_HI_RES
+    _REL_HWHEEL_HI   = 12   # REL_HWHEEL_HI_RES
+
+    class MouseHook:
+        """
+        Uses evdev on Linux to intercept mouse button presses and scroll
+        events.  Devices are grabbed exclusively so that events do not
+        reach the display server; a matching UInput virtual device re-emits
+        all non-blocked events so the pointer still works normally.
+
+        Requires the running user to be a member of the *input* group:
+            sudo usermod -aG input $USER
+        And the *uinput* group (or an appropriate udev rule) for injection:
+            sudo usermod -aG uinput $USER
+        """
+
+        def __init__(self):
+            self._running = False
+            self._callbacks = {}
+            self._blocked_events = set()
+            self._debug_callback = None
+            self.debug_mode = False
+            self.invert_vscroll = False
+            self.invert_hscroll = False
+            self._gesture_active = False
+            self._hid_gesture = None
+            self._device_connected = False
+            self._connection_change_cb = None
+            self._gesture_direction_enabled = False
+            self._gesture_threshold = 50.0
+            self._gesture_deadzone = 40.0
+            self._gesture_timeout_ms = 3000
+            self._gesture_cooldown_ms = 500
+            self._gesture_tracking = False
+            self._gesture_triggered = False
+            self._gesture_started_at = 0.0
+            self._gesture_delta_x = 0.0
+            self._gesture_delta_y = 0.0
+            self._gesture_cooldown_until = 0.0
+            self._gesture_input_source = None
+            self._devices = []
+            self._uinput = None
+            self._threads = []
+            self._dispatch_queue = queue.Queue()
+            self._dispatch_thread = None
+
+        # ---- public interface ----------------------------------------
+
+        def register(self, event_type, callback):
+            self._callbacks.setdefault(event_type, []).append(callback)
+
+        def block(self, event_type):
+            self._blocked_events.add(event_type)
+
+        def unblock(self, event_type):
+            self._blocked_events.discard(event_type)
+
+        def reset_bindings(self):
+            self._callbacks.clear()
+            self._blocked_events.clear()
+
+        def configure_gestures(self, enabled=False, threshold=50,
+                               deadzone=40, timeout_ms=3000, cooldown_ms=500):
+            self._gesture_direction_enabled = bool(enabled)
+            self._gesture_threshold = float(max(5, threshold))
+            self._gesture_deadzone = float(max(0, deadzone))
+            self._gesture_timeout_ms = max(250, int(timeout_ms))
+            self._gesture_cooldown_ms = max(0, int(cooldown_ms))
+            if not self._gesture_direction_enabled:
+                self._gesture_tracking = False
+                self._gesture_triggered = False
+
+        def set_debug_callback(self, callback):
+            self._debug_callback = callback
+
+        def set_connection_change_callback(self, cb):
+            self._connection_change_cb = cb
+
+        @property
+        def device_connected(self):
+            return self._device_connected
+
+        # ---- internal helpers ----------------------------------------
+
+        def _set_device_connected(self, connected):
+            if connected == self._device_connected:
+                return
+            self._device_connected = connected
+            state = "Connected" if connected else "Disconnected"
+            print(f"[MouseHook] Device {state}")
+            if self._connection_change_cb:
+                try:
+                    self._connection_change_cb(connected)
+                except Exception:
+                    pass
+
+        def _emit_debug(self, message):
+            if self.debug_mode and self._debug_callback:
+                try:
+                    self._debug_callback(message)
+                except Exception:
+                    pass
+
+        def _dispatch(self, event):
+            callbacks = self._callbacks.get(event.event_type, [])
+            self._emit_debug(
+                f"Dispatch {event.event_type}"
+                f"{_format_debug_details(event.raw_data)} callbacks={len(callbacks)}"
+            )
+            if not callbacks:
+                self._emit_debug(f"No mapped action for {event.event_type}")
+            for cb in callbacks:
+                try:
+                    cb(event)
+                except Exception as exc:
+                    print(f"[MouseHook] callback error: {exc}")
+
+        def _dispatch_worker(self):
+            while self._running:
+                try:
+                    event = self._dispatch_queue.get(timeout=0.05)
+                    self._dispatch(event)
+                except queue.Empty:
+                    continue
+
+        # ---- gesture tracking (mirrors macOS implementation) ---------
+
+        def _gesture_cooldown_active(self):
+            return time.monotonic() < self._gesture_cooldown_until
+
+        def _start_gesture_tracking(self):
+            self._gesture_tracking = self._gesture_direction_enabled
+            self._gesture_started_at = time.monotonic()
+            self._gesture_delta_x = 0.0
+            self._gesture_delta_y = 0.0
+            self._gesture_input_source = None
+
+        def _finish_gesture_tracking(self):
+            self._gesture_tracking = False
+            self._gesture_started_at = 0.0
+            self._gesture_delta_x = 0.0
+            self._gesture_delta_y = 0.0
+            self._gesture_input_source = None
+
+        def _detect_gesture_event(self):
+            delta_x = self._gesture_delta_x
+            delta_y = self._gesture_delta_y
+            abs_x = abs(delta_x)
+            abs_y = abs(delta_y)
+            dominant = max(abs_x, abs_y)
+            if dominant < self._gesture_threshold:
+                return None
+            cross_limit = max(self._gesture_deadzone, dominant * 0.35)
+            if abs_x > abs_y:
+                if abs_y > cross_limit:
+                    return None
+                return MouseEvent.GESTURE_SWIPE_RIGHT if delta_x > 0 else MouseEvent.GESTURE_SWIPE_LEFT
+            if abs_x > cross_limit:
+                return None
+            return MouseEvent.GESTURE_SWIPE_DOWN if delta_y > 0 else MouseEvent.GESTURE_SWIPE_UP
+
+        def _accumulate_gesture_delta(self, delta_x, delta_y, source):
+            if not (self._gesture_direction_enabled and self._gesture_active):
+                return
+            if self._gesture_cooldown_active():
+                return
+            if not self._gesture_tracking:
+                self._start_gesture_tracking()
+            elapsed_ms = (time.monotonic() - self._gesture_started_at) * 1000.0
+            if elapsed_ms > self._gesture_timeout_ms:
+                self._start_gesture_tracking()
+            if self._gesture_input_source not in (None, source):
+                return
+            self._gesture_input_source = source
+            self._gesture_delta_x += delta_x
+            self._gesture_delta_y += delta_y
+            while True:
+                gesture_event = self._detect_gesture_event()
+                if not gesture_event:
+                    return
+                self._gesture_triggered = True
+                self._dispatch_queue.put(
+                    MouseEvent(
+                        gesture_event,
+                        {
+                            "delta_x": self._gesture_delta_x,
+                            "delta_y": self._gesture_delta_y,
+                            "source": source,
+                        },
+                    )
+                )
+                self._gesture_cooldown_until = (
+                    time.monotonic() + self._gesture_cooldown_ms / 1000.0
+                )
+                self._finish_gesture_tracking()
+                return
+
+        # ---- HID gesture callbacks -----------------------------------
+
+        def _on_hid_gesture_down(self):
+            if not self._gesture_active:
+                self._gesture_active = True
+                self._gesture_triggered = False
+                self._emit_debug("HID gesture button down")
+                if self._gesture_direction_enabled and not self._gesture_cooldown_active():
+                    self._start_gesture_tracking()
+                else:
+                    self._gesture_tracking = False
+                    self._gesture_triggered = False
+
+        def _on_hid_gesture_up(self):
+            if self._gesture_active:
+                should_click = not self._gesture_triggered
+                self._gesture_active = False
+                self._finish_gesture_tracking()
+                self._gesture_triggered = False
+                self._emit_debug(
+                    f"HID gesture button up click_candidate={str(should_click).lower()}"
+                )
+                if should_click:
+                    self._dispatch(MouseEvent(MouseEvent.GESTURE_CLICK))
+
+        def _on_hid_gesture_move(self, delta_x, delta_y):
+            self._accumulate_gesture_delta(delta_x, delta_y, "hid_rawxy")
+
+        def _on_hid_connect(self):
+            self._set_device_connected(True)
+
+        def _on_hid_disconnect(self):
+            self._set_device_connected(False)
+
+        # ---- evdev device management --------------------------------
+
+        def _find_mouse_devices(self):
+            """Return all evdev devices that look like mice."""
+            devices = []
+            for path in list_devices():
+                try:
+                    dev = InputDevice(path)
+                    caps = dev.capabilities()
+                    # Must have relative axes (pointer movement)
+                    if _ec.EV_REL not in caps:
+                        dev.close()
+                        continue
+                    rel_codes = caps[_ec.EV_REL]
+                    if _ec.REL_X not in rel_codes and _ec.REL_Y not in rel_codes:
+                        dev.close()
+                        continue
+                    # Must have at least a left button
+                    keys = caps.get(_ec.EV_KEY, [])
+                    if _ec.BTN_LEFT not in keys:
+                        dev.close()
+                        continue
+                    devices.append(dev)
+                except Exception:
+                    pass
+            return devices
+
+        def _create_passthrough_uinput(self, devices):
+            """Create a UInput virtual device mirroring the capabilities of *devices*."""
+            all_caps = {}
+            for dev in devices:
+                for ev_type, ev_codes in dev.capabilities().items():
+                    if ev_type == _ec.EV_SYN:
+                        continue
+                    if ev_type not in all_caps:
+                        all_caps[ev_type] = []
+                    all_caps[ev_type].extend(ev_codes)
+            # Deduplicate
+            for ev_type in all_caps:
+                all_caps[ev_type] = list(set(all_caps[ev_type]))
+            try:
+                ui = UInput(events=all_caps, name="Mouser Virtual Mouse",
+                            vendor=0x046d, product=0xb034)
+                return ui
+            except Exception as exc:
+                print(f"[MouseHook] Failed to create UInput passthrough device: {exc}")
+                print("[MouseHook] Make sure your user is in the 'uinput' group "
+                      "or run: sudo usermod -aG uinput $USER")
+                return None
+
+        # ---- per-device read loop ------------------------------------
+
+        def _read_device(self, device):
+            """Read and process all events from a single grabbed device."""
+            # Accumulated relative motion for the current event frame
+            pending_rel_x = 0
+            pending_rel_y = 0
+            try:
+                for ev in device.read_loop():
+                    if not self._running:
+                        break
+                    # Accumulate relative motion before processing so that
+                    # _handle_event always receives the current frame's totals.
+                    if ev.type == _ec.EV_REL:
+                        if ev.code == _ec.REL_X:
+                            pending_rel_x += ev.value
+                        elif ev.code == _ec.REL_Y:
+                            pending_rel_y += ev.value
+                    self._handle_event(ev, pending_rel_x, pending_rel_y)
+                    # Reset per-frame accumulators after SYN_REPORT
+                    if ev.type == _ec.EV_SYN:
+                        pending_rel_x = 0
+                        pending_rel_y = 0
+            except OSError:
+                if self._running:
+                    print(f"[MouseHook] Lost device: {device.path}")
+
+        def _handle_event(self, ev, pending_rel_x, pending_rel_y):
+            """Translate one evdev event and forward/block appropriately."""
+            if ev.type == _ec.EV_SYN:
+                # Flush the pending gesture movement on each sync
+                if (pending_rel_x or pending_rel_y) and self._gesture_active:
+                    self._accumulate_gesture_delta(
+                        pending_rel_x, pending_rel_y, "evdev"
+                    )
+                if self._uinput:
+                    try:
+                        self._uinput.syn()
+                    except Exception:
+                        pass
+                return
+
+            if ev.type == _ec.EV_KEY:
+                mouse_event_type = None
+                blocked = False
+
+                if ev.code == _BTN_MIDDLE:
+                    if ev.value == 1:
+                        mouse_event_type = MouseEvent.MIDDLE_DOWN
+                        blocked = MouseEvent.MIDDLE_DOWN in self._blocked_events
+                    elif ev.value == 0:
+                        mouse_event_type = MouseEvent.MIDDLE_UP
+                        blocked = MouseEvent.MIDDLE_UP in self._blocked_events
+
+                elif ev.code in (_BTN_SIDE, _BTN_BACK):
+                    if ev.value == 1:
+                        mouse_event_type = MouseEvent.XBUTTON1_DOWN
+                        blocked = MouseEvent.XBUTTON1_DOWN in self._blocked_events
+                    elif ev.value == 0:
+                        mouse_event_type = MouseEvent.XBUTTON1_UP
+                        blocked = MouseEvent.XBUTTON1_UP in self._blocked_events
+
+                elif ev.code in (_BTN_EXTRA, _BTN_FORWARD):
+                    if ev.value == 1:
+                        mouse_event_type = MouseEvent.XBUTTON2_DOWN
+                        blocked = MouseEvent.XBUTTON2_DOWN in self._blocked_events
+                    elif ev.value == 0:
+                        mouse_event_type = MouseEvent.XBUTTON2_UP
+                        blocked = MouseEvent.XBUTTON2_UP in self._blocked_events
+
+                if mouse_event_type:
+                    self._dispatch_queue.put(MouseEvent(mouse_event_type))
+                if not blocked and self._uinput:
+                    try:
+                        self._uinput.write(_ec.EV_KEY, ev.code, ev.value)
+                    except Exception:
+                        pass
+                return
+
+            if ev.type == _ec.EV_REL:
+                if ev.code in (_REL_HWHEEL, _REL_HWHEEL_HI):
+                    mouse_event_type = None
+                    blocked = False
+                    out_value = ev.value
+                    if ev.value > 0:
+                        mouse_event_type = MouseEvent.HSCROLL_RIGHT
+                        blocked = MouseEvent.HSCROLL_RIGHT in self._blocked_events
+                        if self.invert_hscroll:
+                            out_value = -ev.value
+                    elif ev.value < 0:
+                        mouse_event_type = MouseEvent.HSCROLL_LEFT
+                        blocked = MouseEvent.HSCROLL_LEFT in self._blocked_events
+                        if self.invert_hscroll:
+                            out_value = -ev.value
+                    if mouse_event_type:
+                        self._dispatch_queue.put(MouseEvent(mouse_event_type, abs(ev.value)))
+                    if not blocked and self._uinput:
+                        try:
+                            self._uinput.write(_ec.EV_REL, ev.code, out_value)
+                        except Exception:
+                            pass
+                    return
+
+                if ev.code in (_REL_WHEEL, _REL_WHEEL_HI):
+                    out_value = (-ev.value) if self.invert_vscroll else ev.value
+                    if self._uinput:
+                        try:
+                            self._uinput.write(_ec.EV_REL, ev.code, out_value)
+                        except Exception:
+                            pass
+                    return
+
+                # All other relative axes (REL_X, REL_Y, …) pass through unchanged
+                if self._uinput:
+                    try:
+                        self._uinput.write(_ec.EV_REL, ev.code, ev.value)
+                    except Exception:
+                        pass
+                return
+
+            # All other event types pass through unchanged
+            if self._uinput:
+                try:
+                    self._uinput.write(ev.type, ev.code, ev.value)
+                except Exception:
+                    pass
+
+        # ---- lifecycle -----------------------------------------------
+
+        def start(self):
+            if not _EVDEV_OK:
+                print("[MouseHook] evdev not available — hook not installed")
+                return
+
+            self._running = True
+
+            if HidGestureListener is not None:
+                self._hid_gesture = HidGestureListener(
+                    on_down=self._on_hid_gesture_down,
+                    on_up=self._on_hid_gesture_up,
+                    on_move=self._on_hid_gesture_move,
+                    on_connect=self._on_hid_connect,
+                    on_disconnect=self._on_hid_disconnect,
+                )
+                self._hid_gesture.start()
+
+            self._dispatch_thread = threading.Thread(
+                target=self._dispatch_worker, daemon=True, name="MouseHook-dispatch"
+            )
+            self._dispatch_thread.start()
+
+            self._devices = self._find_mouse_devices()
+            if not self._devices:
+                print("[MouseHook] No mouse devices found in /dev/input")
+                print("[MouseHook] Make sure your user is in the 'input' group: "
+                      "sudo usermod -aG input $USER")
+                return
+
+            self._uinput = self._create_passthrough_uinput(self._devices)
+
+            for dev in self._devices:
+                try:
+                    dev.grab()
+                    print(f"[MouseHook] Grabbed device: {dev.name} ({dev.path})", flush=True)
+                except Exception as exc:
+                    print(f"[MouseHook] Could not grab {dev.name}: {exc}")
+                    continue
+                t = threading.Thread(
+                    target=self._read_device,
+                    args=(dev,),
+                    daemon=True,
+                    name=f"MouseHook-{dev.name}",
+                )
+                t.start()
+                self._threads.append(t)
+
+            self._set_device_connected(bool(self._devices))
+
+        def stop(self):
+            self._running = False
+
+            if self._hid_gesture:
+                self._hid_gesture.stop()
+                self._hid_gesture = None
+
+            for dev in self._devices:
+                try:
+                    dev.ungrab()
+                    dev.close()
+                except Exception:
+                    pass
+            self._devices = []
+
+            if self._uinput:
+                try:
+                    self._uinput.close()
+                except Exception:
+                    pass
+                self._uinput = None
+
+            for t in self._threads:
+                t.join(timeout=1)
+            self._threads = []
+
+            if self._dispatch_thread:
+                self._dispatch_thread.join(timeout=1)
+                self._dispatch_thread = None
+
+
 # ==================================================================
 # Unsupported platform stub
 # ==================================================================

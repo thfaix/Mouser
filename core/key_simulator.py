@@ -682,6 +682,269 @@ elif sys.platform == "darwin":
 
 
 # ==================================================================
+# Linux implementation
+# ==================================================================
+
+elif sys.platform.startswith("linux"):
+    try:
+        import evdev
+        from evdev import UInput, ecodes as _ec
+        _EVDEV_OK = True
+    except ImportError:
+        _EVDEV_OK = False
+        print("[KeySimulator] python-evdev not installed — "
+              "pip install evdev")
+
+    MOUSEEVENTF_WHEEL  = 0x0800
+    MOUSEEVENTF_HWHEEL = 0x01000
+
+    # Linux evdev key codes
+    _KEY_LEFTCTRL  = 29
+    _KEY_LEFTSHIFT = 42
+    _KEY_LEFTALT   = 56
+    _KEY_LEFTMETA  = 125   # Super / Win key
+    _KEY_TAB       = 15
+    _KEY_ENTER     = 28
+    _KEY_ESC       = 1
+    _KEY_BACKSPACE = 14
+    _KEY_DELETE    = 111
+    _KEY_LEFT      = 105
+    _KEY_RIGHT     = 106
+    _KEY_UP        = 103
+    _KEY_DOWN      = 108
+
+    _KEY_A = 30
+    _KEY_C = 46
+    _KEY_D = 32
+    _KEY_F = 33
+    _KEY_N = 49
+    _KEY_S = 31
+    _KEY_T = 20
+    _KEY_V = 47
+    _KEY_W = 17
+    _KEY_X = 45
+    _KEY_Z = 44
+
+    _KEY_F1  = 59
+    _KEY_F2  = 60
+    _KEY_F3  = 61
+    _KEY_F4  = 62
+    _KEY_F5  = 63
+    _KEY_F6  = 64
+    _KEY_F7  = 65
+    _KEY_F8  = 66
+    _KEY_F9  = 67
+    _KEY_F10 = 68
+    _KEY_F11 = 87
+    _KEY_F12 = 88
+
+    _KEY_VOLUMEUP   = 115
+    _KEY_VOLUMEDOWN = 114
+    _KEY_MUTE       = 113
+    _KEY_PLAYPAUSE  = 164
+    _KEY_NEXTSONG   = 163
+    _KEY_PREVIOUSSONG = 165
+    _KEY_BACK       = 158
+    _KEY_FORWARD    = 159
+
+    # All keys the virtual keyboard device needs to emit
+    _KBD_CAPABILITIES = {
+        _ec.EV_KEY: [
+            _KEY_LEFTCTRL, _KEY_LEFTSHIFT, _KEY_LEFTALT, _KEY_LEFTMETA,
+            _KEY_TAB, _KEY_ENTER, _KEY_ESC, _KEY_BACKSPACE, _KEY_DELETE,
+            _KEY_LEFT, _KEY_RIGHT, _KEY_UP, _KEY_DOWN,
+            _KEY_A, _KEY_C, _KEY_D, _KEY_F, _KEY_N,
+            _KEY_S, _KEY_T, _KEY_V, _KEY_W, _KEY_X, _KEY_Z,
+            _KEY_F1, _KEY_F2, _KEY_F3, _KEY_F4, _KEY_F5, _KEY_F6,
+            _KEY_F7, _KEY_F8, _KEY_F9, _KEY_F10, _KEY_F11, _KEY_F12,
+            _KEY_VOLUMEUP, _KEY_VOLUMEDOWN, _KEY_MUTE,
+            _KEY_PLAYPAUSE, _KEY_NEXTSONG, _KEY_PREVIOUSSONG,
+            _KEY_BACK, _KEY_FORWARD,
+        ],
+        _ec.EV_REL: [_ec.REL_WHEEL, _ec.REL_HWHEEL],
+    } if _EVDEV_OK else {}
+
+    _kbd_ui = None   # lazy-initialised UInput for key injection
+    _scroll_ui = None   # lazy-initialised UInput for scroll injection
+
+    def _get_kbd_ui():
+        global _kbd_ui
+        if _kbd_ui is None and _EVDEV_OK:
+            try:
+                _kbd_ui = UInput(events=_KBD_CAPABILITIES, name="Mouser Key Injector")
+            except Exception as exc:
+                print(f"[KeySimulator] Failed to create UInput keyboard: {exc}")
+                print("[KeySimulator] Make sure your user is in the 'uinput' group "
+                      "or run: sudo usermod -aG uinput $USER")
+        return _kbd_ui
+
+    def _get_scroll_ui():
+        global _scroll_ui
+        if _scroll_ui is None and _EVDEV_OK:
+            try:
+                _scroll_ui = UInput(
+                    events={_ec.EV_REL: [_ec.REL_WHEEL, _ec.REL_HWHEEL]},
+                    name="Mouser Scroll Injector",
+                )
+            except Exception as exc:
+                print(f"[KeySimulator] Failed to create UInput scroll device: {exc}")
+        return _scroll_ui
+
+    def inject_scroll(flags, delta):
+        """Inject a scroll event via UInput."""
+        ui = _get_scroll_ui()
+        if ui is None:
+            return
+        try:
+            if flags == MOUSEEVENTF_WHEEL:
+                ui.write(_ec.EV_REL, _ec.REL_WHEEL, delta)
+            else:
+                ui.write(_ec.EV_REL, _ec.REL_HWHEEL, delta)
+            ui.syn()
+        except Exception as exc:
+            print(f"[KeySimulator] inject_scroll error: {exc}")
+
+    def send_key_combo(keys, hold_ms=50):
+        """Press and release a combination of evdev key codes."""
+        ui = _get_kbd_ui()
+        if ui is None:
+            return
+        try:
+            for k in keys:
+                ui.write(_ec.EV_KEY, k, 1)
+            ui.syn()
+            if hold_ms:
+                time.sleep(hold_ms / 1000.0)
+            for k in reversed(keys):
+                ui.write(_ec.EV_KEY, k, 0)
+            ui.syn()
+        except Exception as exc:
+            print(f"[KeySimulator] send_key_combo error: {exc}")
+
+    def send_key_press(vk):
+        send_key_combo([vk])
+
+    ACTIONS = {
+        "alt_tab": {
+            "label": "Alt + Tab (Switch Windows)",
+            "keys": [_KEY_LEFTALT, _KEY_TAB],
+            "category": "Navigation",
+        },
+        "alt_shift_tab": {
+            "label": "Alt + Shift + Tab (Switch Windows Reverse)",
+            "keys": [_KEY_LEFTALT, _KEY_LEFTSHIFT, _KEY_TAB],
+            "category": "Navigation",
+        },
+        "browser_back": {
+            "label": "Browser Back",
+            "keys": [_KEY_BACK],
+            "category": "Browser",
+        },
+        "browser_forward": {
+            "label": "Browser Forward",
+            "keys": [_KEY_FORWARD],
+            "category": "Browser",
+        },
+        "copy": {
+            "label": "Copy (Ctrl+C)",
+            "keys": [_KEY_LEFTCTRL, _KEY_C],
+            "category": "Editing",
+        },
+        "paste": {
+            "label": "Paste (Ctrl+V)",
+            "keys": [_KEY_LEFTCTRL, _KEY_V],
+            "category": "Editing",
+        },
+        "cut": {
+            "label": "Cut (Ctrl+X)",
+            "keys": [_KEY_LEFTCTRL, _KEY_X],
+            "category": "Editing",
+        },
+        "undo": {
+            "label": "Undo (Ctrl+Z)",
+            "keys": [_KEY_LEFTCTRL, _KEY_Z],
+            "category": "Editing",
+        },
+        "select_all": {
+            "label": "Select All (Ctrl+A)",
+            "keys": [_KEY_LEFTCTRL, _KEY_A],
+            "category": "Editing",
+        },
+        "save": {
+            "label": "Save (Ctrl+S)",
+            "keys": [_KEY_LEFTCTRL, _KEY_S],
+            "category": "Editing",
+        },
+        "close_tab": {
+            "label": "Close Tab (Ctrl+W)",
+            "keys": [_KEY_LEFTCTRL, _KEY_W],
+            "category": "Browser",
+        },
+        "new_tab": {
+            "label": "New Tab (Ctrl+T)",
+            "keys": [_KEY_LEFTCTRL, _KEY_T],
+            "category": "Browser",
+        },
+        "find": {
+            "label": "Find (Ctrl+F)",
+            "keys": [_KEY_LEFTCTRL, _KEY_F],
+            "category": "Editing",
+        },
+        "win_d": {
+            "label": "Show Desktop (Super+D)",
+            "keys": [_KEY_LEFTMETA, _KEY_D],
+            "category": "Navigation",
+        },
+        "task_view": {
+            "label": "Task View (Super+Tab)",
+            "keys": [_KEY_LEFTMETA, _KEY_TAB],
+            "category": "Navigation",
+        },
+        "volume_up": {
+            "label": "Volume Up",
+            "keys": [_KEY_VOLUMEUP],
+            "category": "Media",
+        },
+        "volume_down": {
+            "label": "Volume Down",
+            "keys": [_KEY_VOLUMEDOWN],
+            "category": "Media",
+        },
+        "volume_mute": {
+            "label": "Volume Mute",
+            "keys": [_KEY_MUTE],
+            "category": "Media",
+        },
+        "play_pause": {
+            "label": "Play / Pause",
+            "keys": [_KEY_PLAYPAUSE],
+            "category": "Media",
+        },
+        "next_track": {
+            "label": "Next Track",
+            "keys": [_KEY_NEXTSONG],
+            "category": "Media",
+        },
+        "prev_track": {
+            "label": "Previous Track",
+            "keys": [_KEY_PREVIOUSSONG],
+            "category": "Media",
+        },
+        "none": {
+            "label": "Do Nothing (Pass-through)",
+            "keys": [],
+            "category": "Other",
+        },
+    }
+
+    def execute_action(action_id):
+        action = ACTIONS.get(action_id)
+        if not action or not action["keys"]:
+            return
+        send_key_combo(action["keys"])
+
+
+# ==================================================================
 # Unsupported platform stub
 # ==================================================================
 

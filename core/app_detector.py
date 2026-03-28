@@ -179,6 +179,58 @@ elif sys.platform == "darwin":
         except Exception:
             return None
 
+elif sys.platform.startswith("linux"):
+    import subprocess
+
+    def get_foreground_exe() -> str | None:
+        """Return the executable name of the active window on Linux.
+
+        Tries ``xdotool`` first (X11/XWayland), then falls back to reading
+        ``/proc/<pid>/comm`` via other helpers.  Returns *None* when the
+        active window cannot be determined (e.g. pure Wayland without a
+        compatibility layer).
+        """
+        try:
+            result = subprocess.run(
+                ["xdotool", "getactivewindow", "getwindowpid"],
+                capture_output=True, text=True, timeout=1,
+            )
+            if result.returncode == 0:
+                pid_str = result.stdout.strip()
+                if pid_str and pid_str.isdigit():
+                    with open(f"/proc/{pid_str}/comm") as fh:
+                        return fh.read().strip()
+        except FileNotFoundError:
+            # xdotool is not installed — try wmctrl
+            pass
+        except Exception:
+            pass
+        try:
+            result = subprocess.run(
+                ["wmctrl", "-lp"],
+                capture_output=True, text=True, timeout=1,
+            )
+            # wmctrl output: <win-id> <desktop> <pid> <host> <title>
+            # We pick the focused window via xprop as a secondary attempt
+            xprop = subprocess.run(
+                ["xprop", "-root", "_NET_ACTIVE_WINDOW"],
+                capture_output=True, text=True, timeout=1,
+            )
+            if xprop.returncode == 0:
+                parts = xprop.stdout.strip().split()
+                if len(parts) >= 3:
+                    win_id_hex = parts[-1].lower()
+                    for line in result.stdout.splitlines():
+                        cols = line.split(None, 4)
+                        if len(cols) >= 3 and cols[0].lower() == win_id_hex:
+                            pid_str = cols[2]
+                            if pid_str and pid_str.isdigit() and pid_str != "0":
+                                with open(f"/proc/{pid_str}/comm") as fh:
+                                    return fh.read().strip()
+        except Exception:
+            pass
+        return None
+
 else:
     def get_foreground_exe() -> str | None:
         return None
